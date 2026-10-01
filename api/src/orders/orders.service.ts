@@ -37,7 +37,14 @@ export class OrdersService {
       throw new NotFoundException('Evento no encontrado');
     }
 
+    const ticketTypeIds = new Set<string>();
+
     const items = dto.items.map((line) => {
+      if (ticketTypeIds.has(line.ticketTypeId)) {
+        throw new BadRequestException('Localidades duplicadas');
+      }
+      ticketTypeIds.add(line.ticketTypeId);
+
       const ticketType = event.ticketTypes.find(
         (type) => type.id === line.ticketTypeId,
       );
@@ -46,9 +53,16 @@ export class OrdersService {
         throw new NotFoundException('Localidad no encontrada');
       }
 
-      // TODO: reject quantity > remaining and quantity > maxPerOrder
-      // TODO: reject duplicate ticketTypeId values in the same request
-      // TODO: decrement ticketType.remaining
+      if (line.quantity > ticketType.remaining) {
+        throw new BadRequestException('No hay suficientes entradas disponibles');
+      }
+
+      if (line.quantity > ticketType.maxPerOrder) {
+        throw new BadRequestException('La cantidad supera el límite por orden');
+      }
+
+      // Restamos del inventario inmediatamente
+      ticketType.remaining -= line.quantity;
 
       return {
         ticketTypeId: ticketType.id,
@@ -64,8 +78,8 @@ export class OrdersService {
       0,
     );
 
-    // TODO: feeCents should be SERVICE_FEE_PERCENT of subtotalCents, rounded
-    const feeCents = 0;
+    // Calculamos el 10% con redondeo al entero más cercano
+    const feeCents = Math.round((subtotalCents * SERVICE_FEE_PERCENT) / 100);
 
     const order: Order = {
       id: `ord_${randomUUID()}`,
@@ -96,7 +110,9 @@ export class OrdersService {
   confirm(id: string, dto: ConfirmOrderDto): Order {
     const order = this.findById(id);
 
-    // TODO: reject when the order is not pending
+    if (order.status !== 'pending') {
+      throw new BadRequestException('La orden ya fue confirmada o no es válida');
+    }
 
     order.status = 'confirmed';
     order.buyer = { name: dto.name, email: dto.email };

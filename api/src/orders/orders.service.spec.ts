@@ -134,6 +134,29 @@ describe('OrdersService', () => {
         }),
       ).toThrow(BadRequestException);
     });
+
+    it('applies 10% discount to subtotal if SAVE10 code is provided', () => {
+      const order = service.create({
+        eventId: 'noche-salsa',
+        items: [{ ticketTypeId: 'salsa-general', quantity: 2 }],
+        discountCode: 'SAVE10',
+      });
+
+      // 2 * 2500 = 5000 -> 10% off -> 4500
+      expect(order.subtotalCents).toBe(4500);
+      expect(order.feeCents).toBe(Math.round((4500 * SERVICE_FEE_PERCENT) / 100));
+      expect(order.totalCents).toBe(4950);
+    });
+
+    it('applies discount even if code is lowercase (save10)', () => {
+      const order = service.create({
+        eventId: 'noche-salsa',
+        items: [{ ticketTypeId: 'salsa-general', quantity: 2 }],
+        discountCode: 'save10',
+      });
+
+      expect(order.subtotalCents).toBe(4500);
+    });
   });
 
   describe('confirm', () => {

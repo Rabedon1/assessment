@@ -73,10 +73,14 @@ export class OrdersService {
       };
     });
 
-    const subtotalCents = items.reduce(
+    let subtotalCents = items.reduce(
       (sum, item) => sum + item.lineTotalCents,
       0,
     );
+
+    if (dto.discountCode?.toUpperCase() === 'SAVE10') {
+      subtotalCents = Math.round(subtotalCents * 0.9);
+    }
 
     // Calculamos el 10% con redondeo al entero más cercano
     const feeCents = Math.round((subtotalCents * SERVICE_FEE_PERCENT) / 100);

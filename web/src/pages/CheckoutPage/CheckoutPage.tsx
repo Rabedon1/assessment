@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 const schema = yup.object({
   name: yup.string().required('El nombre es requerido'),
   email: yup.string().email('Email inválido').required('El email es requerido'),
+  discountCode: yup.string().optional(),
 }).required();
 
 type FormData = yup.InferType<typeof schema>;
@@ -26,10 +27,13 @@ export function CheckoutPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: yupResolver(schema),
   });
+
+  const watchDiscountCode = watch('discountCode');
 
   const { mutateAsync: create } = useApiMutation<Order, Record<string, never>, CreateOrderBody>(createOrder);
   
@@ -38,7 +42,7 @@ export function CheckoutPage() {
 
   useEffect(() => {
     if (pendingConfirmationData && confirmOrderId === pendingConfirmationData.id) {
-      confirm(pendingConfirmationData.data)
+      confirm({ name: pendingConfirmationData.data.name, email: pendingConfirmationData.data.email })
         .then(() => {
           navigate(`/orders/${pendingConfirmationData.id}`);
         })
@@ -53,10 +57,16 @@ export function CheckoutPage() {
     return <Navigate to="/" replace />;
   }
 
-  const subtotalCents = selection.items.reduce(
+  const rawSubtotalCents = selection.items.reduce(
     (sum, item) => sum + item.unitPriceCents * item.quantity,
     0,
   );
+
+  let subtotalCents = rawSubtotalCents;
+  if (watchDiscountCode?.toUpperCase() === 'SAVE10') {
+    subtotalCents = Math.round(subtotalCents * 0.9);
+  }
+
   const feeCents = feeFromSubtotal(subtotalCents);
   const totalCents = subtotalCents + feeCents;
 
@@ -69,6 +79,7 @@ export function CheckoutPage() {
           ticketTypeId: item.ticketTypeId,
           quantity: item.quantity,
         })),
+        discountCode: data.discountCode,
       });
 
       setPendingConfirmationData({ id: order.id, data });
@@ -120,6 +131,21 @@ export function CheckoutPage() {
               className="mt-1 block w-full rounded-lg border-black/10 shadow-sm focus:border-accent focus:ring-accent sm:text-sm disabled:opacity-50"
             />
             {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+          </div>
+
+          <div>
+            <label htmlFor="discountCode" className="block text-sm font-medium text-ink">
+              Código de descuento (Opcional)
+            </label>
+            <input
+              id="discountCode"
+              type="text"
+              placeholder="Ej. SAVE10"
+              disabled={isLoading}
+              {...register('discountCode')}
+              className="mt-1 block w-full rounded-lg border-black/10 shadow-sm focus:border-accent focus:ring-accent sm:text-sm disabled:opacity-50 uppercase"
+            />
+            {watchDiscountCode?.toUpperCase() === 'SAVE10' && <p className="mt-1 text-sm text-green-600 font-medium">¡Código SAVE10 aplicado! 10% de descuento en el subtotal.</p>}
           </div>
 
           <button
